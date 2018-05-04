@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<config>
+    <modules>
+        <ProxiBlue_CloudinaryFetch>
+            <active>true</active>
+            <codePool>community</codePool>
+            <depends></depends>
+        </ProxiBlue_CloudinaryFetch>
+    </modules>
+</config>

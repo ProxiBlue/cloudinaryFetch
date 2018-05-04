@@ -1,0 +1,15 @@
+{
+    "name": "ProxiBlue/CloudinaryFetch",
+    "license": "OSL-3.0",
+    "type": "magento-module",
+    "description": "Push / Use imaged from Cloudinary CDN",
+    "require": {
+        "magento-hackathon/magento-composer-installer": "*"
+    },
+    "authors":[
+        {
+            "name":"Lucas van Staden",
+            "email":"sales@proxiblue.com.au"
+        }
+    ]
+}
