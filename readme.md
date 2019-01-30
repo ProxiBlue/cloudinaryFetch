@@ -11,7 +11,7 @@ So, whats wrong (in my opinion) with their 'official' module:
 2. Extends ADMIN image management.
 3. Works in ADMIN, so all admin images/thumbnails etc also goes to CDN, which is not needed in most usage cases (never want admin stuff in CDN, it is meant for frontend)
 4. No composer based install available. ref: https://github.com/cloudinary/cloudinary_magento/issues/27
-5. Major bug when using a symlinked media folder (due to cluster of frontends) ref: https://github.com/cloudinary/cloudinary_magento/issues/27 
+5. Major bug when using a symlinked media folder (due to cluster of frontends) ref: https://github.com/cloudinary/cloudinary_magento/issues/28
    I further discovered a similar report frm 2016, so this bug has been present for some time!
 6. They extended the Product/Catalog/Categories image subsystem, to allow pushing these images to CDN/Loading from CDN, however, and additional custom image attributes/functionality would not 'just work'
    You had to now specifically code your custom image 'thing' to use the CDN.
