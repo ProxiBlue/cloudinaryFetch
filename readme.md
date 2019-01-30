@@ -90,7 +90,10 @@ A lot of your theme images would be part of css, and most likely using relative 
 If using relative URL's, you will need to move away from those, so you can use a CDN URL
 
 Depending on how you manage your .css resources, you would need to adjust the guide below to your needs:
-We use SASS, and compass to compile (our runner is ant (yikes, old school!)), but that is really irrelevant)
+
+### SASS:
+
+We used to use SASS, and compass to compile (our runner is ant (yikes, old school!)), but that is really irrelevant)
 
 The key is in how you setup compass (via config.rb) to build the css from sass, setting either relative (for dev) or CDN URLs (which you can split between UAT/LIVE)
 
@@ -129,6 +132,170 @@ The basics:
 a check to define if we must use relative assets:  ```relative_assets = (environment == :production) ? false : true``` In development we always build using the development flag, so our development works with relative assests, no CDN
 Check for branch that is being built. ```branch = ENV['bamboo_planRepository_branch']``` as you have noticed, we use [bamboo](https://www.atlassian.com/software/bamboo) for our build process. When building bamboo sets ENV variables, of which one is the branch. If the branch is UAT, I set the UAT CDN url, else use live CDN URL 
 The default is live CDN URL, which is a safe fallback, in case anything goes wrong.
+
+### GULP
+
+We now use gulp to compile scss, below is our curent gulpfile.js
+
+```
+/*
+* npm install
+* run any commands with npx : example npx gulp
+*/
+
+var environment = 'LIVE'; // the default!
+var magentoDirectory = './docroot';
+var cdnBaseUrl = 'https://res.cloudinary.com';
+var cdnOptions = 'q_auto';
+var cdnAreaLive = 'enjo';
+
+var fs = require('fs-extra');
+var types = require('node-sass').types;
+var gulp = require('gulp');
+var gulpif = require('gulp-if');
+var sass = require('gulp-sass');
+var sassGlobImporter = require('node-sass-glob-importer');
+var sourceMaps = require('gulp-sourcemaps');
+var postcss = require('gulp-postcss');
+var jsUglify = require('gulp-uglify');
+
+/** can be removed once we have sante theme to live branch **/
+var compass = require('compass-importer');
+
+if (process.env.USER === "vagrant") {
+    environment = 'DEV';
+}
+
+if (process.env.ENVIRONMENT) {
+    environment = process.env.ENVIRONMENT;
+}
+
+console.log('\x1b[40m%s\x1b[0m', 'Environment: ' + environment);
+
+gulp.task('sass', function () {
+   sassCompile('shared');
+   sassCompile('enjo');
+   sassCompile('sante');
+});
+
+gulp.task('sass-shared', function () {
+    sassCompile('shared');
+});
+
+gulp.task('sass-enjo', function () {
+    sassCompile('enjo');
+});
+
+gulp.task('sass-sante', function () {
+    sassCompile('sante');
+});
+
+gulp.task('js', function () {
+    jsCompile('shared');
+    jsCompile('enjo');
+    jsCompile('sante');
+});
+
+gulp.task('js-shared', function () {
+    jsCompile('shared');
+});
+
+gulp.task('js-enjo', function () {
+    jsCompile('enjo');
+});
+
+gulp.task('js-sante', function () {
+    jsCompile('sante');
+});
+
+function getImageBase(magePackage, mageTheme)
+{
+    var imageBase = '/skin/frontend/' + magePackage + '/' + mageTheme + '/images/';
+
+    if (environment !== 'LIVE') {
+        return imageBase;
+    }
+
+    return cdnBaseUrl + '/' + cdnAreaLive + '/image/upload/' + cdnOptions + imageBase;
+}
+
+function magePackageDir(magePackage, cb) {
+    var magePackageDir = magentoDirectory + '/skin/frontend/' + magePackage;
+    var directories = fs.readdirSync(magePackageDir);
+
+    directories = directories.filter(function (dir) {
+        return fs.statSync(magePackageDir + '/' + dir).isDirectory();
+    });
+
+    directories.forEach(function (mageTheme) {
+        console.log('   %s', mageTheme);
+        cb(magePackageDir, mageTheme);
+    });
+}
+
+function sassCompile(magePackage)
+{
+    console.log('\x1b[33m%s\x1b[0m', 'SASS ' + magePackage.toUpperCase());
+
+    var sassOutputStyle = 'compressed';
+    var enableSourceMaps = false;
+
+    if (environment !== 'LIVE') {
+        sassOutputStyle = 'expanded';
+        enableSourceMaps = true;
+    }
+
+    magePackageDir(magePackage, function (magePackageDir, mageTheme) {
+        var targetDir = magePackageDir + '/' + mageTheme + '/css';
+
+        fs.remove(targetDir);
+
+        gulp.src(magePackageDir + '/' + mageTheme + '/scss/*.scss')
+            .pipe(gulpif(enableSourceMaps, sourceMaps.init()))
+            .pipe(sass({
+                outputStyle: sassOutputStyle,
+                includePaths: [ magePackageDir + '/default/scss' ],
+                importer: [ sassGlobImporter(), compass ],
+                functions: {
+                    'image-url($iuImage, $iuMagePackage:"", $iuMageTheme:"")': function (iuImage, iuMagePackage, iuMageTheme) {
+                        iuMagePackage = iuMagePackage.getValue();
+                        iuMageTheme = iuMageTheme.getValue();
+                        if (iuMagePackage === "")  iuMagePackage = magePackage;
+                        if (iuMageTheme === "")  iuMageTheme = mageTheme;
+                        return types.String('url("' + getImageBase(iuMagePackage, iuMageTheme) + iuImage.getValue() + '")');
+                    }
+                }
+            }).on('error', sass.logError))
+            .pipe(postcss([
+                require('postcss-fixes'),
+                require('autoprefixer')
+            ]))
+            .pipe(gulpif(enableSourceMaps, sourceMaps.write('.')))
+            .pipe(gulp.dest(targetDir));
+    });
+}
+
+function jsCompile(magePackage) {
+    console.log('\x1b[34m%s\x1b[0m', 'JS ' + magePackage.toUpperCase());
+
+    magePackageDir(magePackage, function (magePackageDir, mageTheme) {
+        var targetDir = magePackageDir + '/' + mageTheme + '/js';
+
+        gulp.src(targetDir + '/*.js')
+            .pipe(gulp.dest(targetDir + '_tmp'))
+            .pipe(jsUglify())
+            .on('error', function (error) {
+                console.log('\x1b[31m%s\x1b[0m %s', '[Error]', error.toString());
+            })
+            .pipe(gulp.dest(targetDir))
+            .on('end', function () {
+                fs.remove(targetDir + '_tmp');
+            });
+    });
+}
+
+```
+
 
 Image Manipulation
 ------------------
